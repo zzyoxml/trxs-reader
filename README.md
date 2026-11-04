@@ -47,7 +47,7 @@
 
 安装后打开 `trxs.cc` 的书籍目录页或章节页，右下角会出现悬浮按钮组。
 
-> 脚本元数据中已声明 `@updateURL` / `@downloadURL`，之后发布新版本会自动检查更新。
+> **关于自动更新**：脚本元数据里没有写死 `@updateURL` / `@downloadURL`，而是让 Tampermonkey 以**安装来源**作为更新地址。所以从 Greasy Fork 装的会走 Greasy Fork 更新，从 GitHub raw 装的会走 raw 更新，两条渠道互不冲突。发布新版本前记得先递增 `@version`。
 
 ---
 
