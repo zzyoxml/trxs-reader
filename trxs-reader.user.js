@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         同人小说网 trxs.cc 阅读增强（阅读模式 · 夜间 · 去广告）
 // @namespace    https://github.com/zzyoxml/trxs-reader
-// @version      1.1.0
+// @version      1.1.1
 // @description  为 trxs.cc 提供沉浸式阅读模式、夜间/护眼配色、广告清理、目录跳转、自动连读、阅读进度记忆
 // @author       zzyoxml
 // @license      MIT
