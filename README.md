@@ -4,6 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tampermonkey](https://img.shields.io/badge/Tampermonkey-userscript-00bb9c.svg)](https://www.tampermonkey.net/)
+[![Greasy Fork](https://img.shields.io/badge/Greasy%20Fork-603684-red.svg)](https://greasyfork.org/zh-CN/scripts/603684)
 [![Tests](https://github.com/zzyoxml/trxs-reader/actions/workflows/test.yml/badge.svg)](https://github.com/zzyoxml/trxs-reader/actions/workflows/test.yml)
 
 > 这个网站阅读模式、夜间模式啥也没有。
@@ -27,13 +28,17 @@
 
 ## 安装
 
-### 方式一：一键安装（推荐）
+### 方式一：Greasy Fork 一键安装（推荐）
 
-点击下面的链接，Tampermonkey 会自动弹出安装页：
+**https://greasyfork.org/zh-CN/scripts/603684**
+
+装好后由 Greasy Fork 自动检查更新。
+
+### 方式二：GitHub raw 一键安装
 
 **https://raw.githubusercontent.com/zzyoxml/trxs-reader/main/trxs-reader.user.js**
 
-### 方式二：手动安装
+### 方式三：手动安装
 
 1. 浏览器安装 [Tampermonkey](https://www.tampermonkey.net/) 扩展
 2. 打开油猴管理面板 → **「添加新脚本」**
