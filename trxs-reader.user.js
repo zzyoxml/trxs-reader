@@ -7,8 +7,6 @@
 // @license      MIT
 // @homepageURL  https://github.com/zzyoxml/trxs-reader
 // @supportURL   https://github.com/zzyoxml/trxs-reader/issues
-// @updateURL    https://raw.githubusercontent.com/zzyoxml/trxs-reader/main/trxs-reader.user.js
-// @downloadURL  https://raw.githubusercontent.com/zzyoxml/trxs-reader/main/trxs-reader.user.js
 // @match        *://trxs.cc/*
 // @match        *://www.trxs.cc/*
 // @grant        GM_addStyle
