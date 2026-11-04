@@ -241,6 +241,68 @@ console.log('\n[7] 阅读器 DOM 构建');
     doc.querySelector('#set-font').min === '14' && doc.querySelector('#set-font').max === '34');
   ok('默认主题 light', doc.querySelector('#trx-reader').dataset.theme === 'light');
   ok('html 有 trx-open', doc.documentElement.classList.contains('trx-open'));
+
+  // 固定行为不做成开关：设置面板里不应再出现这 4 项
+  ok('无「去广告」开关', !doc.querySelector('#set-noads'));
+  ok('无「隐藏推荐」开关', !doc.querySelector('#set-nohot'));
+  ok('无「悬浮按钮」开关', !doc.querySelector('#set-fab'));
+  ok('无「跟随系统」开关', !doc.querySelector('#set-autodark'));
+  ok('保留「自动连读」开关', !!doc.querySelector('#set-auto'));
+
+  // 字号改为 A+ / A− 两个独立按钮
+  ok('有 A+ 放大按钮', !!doc.querySelector('#trx-btn-font-up'),
+    doc.querySelector('#trx-btn-font-up') && doc.querySelector('#trx-btn-font-up').textContent);
+  ok('有 A− 缩小按钮', !!doc.querySelector('#trx-btn-font-down'),
+    doc.querySelector('#trx-btn-font-down') && doc.querySelector('#trx-btn-font-down').textContent);
+  ok('旧 A± 按钮已移除', !doc.querySelector('#trx-btn-font'));
+  dom.window.close();
+}
+
+/* ------------------------------------------------------------------ */
+console.log('\n[7b] A+ / A− 字号增减');
+/* ------------------------------------------------------------------ */
+{
+  const dom = makeDom(readFix('12573_1.html'), 'http://trxs.cc/tongren/12573/1.html');
+  const w = dom.window;
+  const doc = w.document;
+  w.__TRX__.openReader(1);
+  await tick(60);
+  const reader = doc.querySelector('#trx-reader');
+
+  doc.querySelector('#trx-btn-font-up').dispatchEvent(new w.Event('click', { bubbles: true }));
+  await tick(20);
+  ok('A+ 放大到 21px', w.__TRX__.settings.fontSize === 21, 'got ' + w.__TRX__.settings.fontSize);
+  ok('A+ 后 CSS 变量同步', reader.style.getPropertyValue('--trx-fs') === '21px',
+    reader.style.getPropertyValue('--trx-fs'));
+
+  doc.querySelector('#trx-btn-font-down').dispatchEvent(new w.Event('click', { bubbles: true }));
+  await tick(20);
+  ok('A− 缩回 19px', w.__TRX__.settings.fontSize === 19, 'got ' + w.__TRX__.settings.fontSize);
+  doc.querySelector('#trx-btn-font-down').dispatchEvent(new w.Event('click', { bubbles: true }));
+  await tick(20);
+  ok('A− 继续缩到 18px', w.__TRX__.settings.fontSize === 18, 'got ' + w.__TRX__.settings.fontSize);
+  ok('A− 同步滑块值', doc.querySelector('#set-font').value === '18',
+    doc.querySelector('#set-font').value);
+  dom.window.close();
+}
+
+/* ------------------------------------------------------------------ */
+console.log('\n[7c] 字号边界不越界');
+/* ------------------------------------------------------------------ */
+{
+  const dom = makeDom(readFix('12573_1.html'), 'http://trxs.cc/tongren/12573/1.html');
+  const w = dom.window;
+  const api = w.__TRX__;
+  w.__TRX__.openReader(1);
+  await tick(60);
+
+  api.settings.fontSize = 16; // 最小档
+  for (let i = 0; i < 6; i++) api.stepFontSize(-1);
+  ok('已是最小档时 A− 不越界', api.settings.fontSize === 16, 'got ' + api.settings.fontSize);
+
+  api.settings.fontSize = 29; // 最大档
+  for (let i = 0; i < 6; i++) api.stepFontSize(1);
+  ok('已是最大档时 A+ 不越界', api.settings.fontSize === 29, 'got ' + api.settings.fontSize);
   dom.window.close();
 }
 

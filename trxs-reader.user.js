@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         同人小说网 trxs.cc 阅读增强（阅读模式 · 夜间 · 去广告）
 // @namespace    https://github.com/zzyoxml/trxs-reader
-// @version      1.0.0
+// @version      1.1.0
 // @description  为 trxs.cc 提供沉浸式阅读模式、夜间/护眼配色、广告清理、目录跳转、自动连读、阅读进度记忆
 // @author       zzyoxml
 // @license      MIT
@@ -156,12 +156,21 @@
     family: 'system',
     theme: 'light',
     autoNext: true,
+    darkNative: false // 原页面夜间模式
+  };
+
+  /* -------------------------------------------------------------------------
+   * 固定行为（不提供开关）
+   * -------------------------------------------------------------------------
+   * 去广告 / 隐藏推荐 / 隐藏登录条 / 显示悬浮按钮 这四项是脚本的既有价值，
+   * 做成 checkbox 反而让人以为可以关掉，实测也没人会关。因此直接固化，
+   * 且不受历史存档里的旧值影响（老用户存过 noAds:false 也不会被尊重）。
+   * ----------------------------------------------------------------------- */
+  const ALWAYS = {
     noAds: true,
-    noHot: true,       // 隐藏"推荐阅读"
-    noLogin: true,     // 隐藏登录/注册条
-    darkNative: false, // 原页面夜间模式
-    autoDark: false,   // 跟随系统
-    showFab: true      // 右下角悬浮按钮
+    noHot: true,
+    noLogin: true,
+    showFab: true
   };
 
   function readStore(key, def) {
@@ -741,22 +750,17 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
   function applyNativeFlags() {
     const root = document.documentElement;
     if (!root) return;
-    root.classList.toggle('trxs-noads', !!settings.noAds);
-    root.classList.toggle('trxs-nohot', !!settings.noHot);
-    root.classList.toggle('trxs-nologin', !!settings.noLogin && !!settings.noAds);
+    root.classList.toggle('trxs-noads', ALWAYS.noAds);
+    root.classList.toggle('trxs-nohot', ALWAYS.noHot);
+    root.classList.toggle('trxs-nologin', ALWAYS.noLogin && ALWAYS.noAds);
 
-    let dark = !!settings.darkNative;
-    if (settings.autoDark && typeof matchMedia === 'function') {
-      dark = matchMedia('(prefers-color-scheme: dark)').matches;
-    }
-    root.classList.toggle('trxs-dark', dark);
-    if (settings.noAds) sweepAds(document);
+    root.classList.toggle('trxs-dark', !!settings.darkNative);
+    sweepAds(document);
     updateFab();
   }
 
   function toggleNativeDark() {
-    settings.darkNative = !document.documentElement.classList.contains('trxs-dark');
-    if (settings.autoDark) settings.autoDark = false;
+    settings.darkNative = !settings.darkNative;
     saveSettings();
     applyNativeFlags();
     toast(settings.darkNative ? '已开启夜间模式' : '已关闭夜间模式');
@@ -813,7 +817,8 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
           <span class="trx-chap"></span>
         </div>
         <div class="trx-bar-actions">
-          <button id="trx-btn-font" title="调整字号">A±</button>
+          <button id="trx-btn-font-down" title="缩小字号">A−</button>
+          <button id="trx-btn-font-up" title="放大字号">A+</button>
           <button id="trx-btn-theme" title="切换夜间（快捷键 D）">🌙</button>
           <button id="trx-btn-set" title="阅读设置">⚙</button>
           <button id="trx-btn-exit" title="退出阅读模式（Esc）">✕</button>
@@ -854,10 +859,6 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
         </div>
         <div class="trx-row"><label>主题</label><div class="trx-themes" id="set-theme"></div></div>
         <div class="trx-row"><label>自动连读</label><input type="checkbox" id="set-auto"></div>
-        <div class="trx-row"><label>去广告</label><input type="checkbox" id="set-noads"></div>
-        <div class="trx-row"><label>隐藏推荐</label><input type="checkbox" id="set-nohot"></div>
-        <div class="trx-row"><label>悬浮按钮</label><input type="checkbox" id="set-fab"></div>
-        <div class="trx-row"><label>跟随系统</label><input type="checkbox" id="set-autodark"></div>
         <div class="trx-sheet-foot">
           <button id="trx-set-reset">恢复默认</button>
           <button id="trx-set-apply">完成</button>
@@ -892,7 +893,8 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
     $('#trx-set-close', wrap).onclick = closeSettings;
     $('#trx-set-apply', wrap).onclick = closeSettings;
     $('#trx-btn-theme', wrap).onclick = cycleTheme;
-    $('#trx-btn-font', wrap).onclick = cycleFontSize;
+    $('#trx-btn-font-up', wrap).onclick = function () { stepFontSize(1); };
+    $('#trx-btn-font-down', wrap).onclick = function () { stepFontSize(-1); };
 
     $('#trx-prev', wrap).onclick = function () { goRelative(-1); };
     $('#trx-next', wrap).onclick = function () { goRelative(1); };
@@ -951,10 +953,6 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
       });
     };
     bindCheck('set-auto', 'autoNext');
-    bindCheck('set-noads', 'noAds', function () { applyNativeFlags(); });
-    bindCheck('set-nohot', 'noHot', function () { applyNativeFlags(); });
-    bindCheck('set-fab', 'showFab', function () { updateFab(); });
-    bindCheck('set-autodark', 'autoDark', function () { applyNativeFlags(); });
   }
 
   function syncSettingsUI() {
@@ -986,10 +984,6 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
       if (el) el.checked = !!v;
     };
     chk('set-auto', settings.autoNext);
-    chk('set-noads', settings.noAds);
-    chk('set-nohot', settings.noHot);
-    chk('set-fab', settings.showFab);
-    chk('set-autodark', settings.autoDark);
   }
 
   function applyReaderSettings() {
@@ -1020,15 +1014,27 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
   }
 
   const FONT_STEPS = [16, 18, 19, 21, 23, 26, 29];
-  function cycleFontSize() {
-    let i = 0;
+
+  /** 在当前字号基础上向 dir（+1 放大 / -1 缩小）方向迈一档，到头则停住 */
+  function stepFontSize(dir) {
+    const cur = settings.fontSize;
+    let idx = 0;
     let best = 999;
-    FONT_STEPS.forEach(function (v, idx) {
-      const d = Math.abs(v - settings.fontSize);
-      if (d < best) { best = d; i = idx; }
+    FONT_STEPS.forEach(function (v, i) {
+      const d = Math.abs(v - cur);
+      if (d < best) { best = d; idx = i; }
     });
-    i = (i + 1) % FONT_STEPS.length;
-    settings.fontSize = FONT_STEPS[i];
+
+    let nextIdx = idx + (dir > 0 ? 1 : -1);
+    if (nextIdx < 0) nextIdx = 0;
+    if (nextIdx > FONT_STEPS.length - 1) nextIdx = FONT_STEPS.length - 1;
+
+    // 已经落在步长表之外（例如手动拖过滑块），先归到最近的档位再走一步
+    if (FONT_STEPS[nextIdx] === cur) {
+      if (nextIdx === idx) return;
+    }
+
+    settings.fontSize = FONT_STEPS[nextIdx];
     saveSettings();
     applyReaderSettings();
     syncSettingsUI();
@@ -1423,7 +1429,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
     const info = pageInfo();
     const canRead = info.kind === 'chapter' || info.kind === 'book';
 
-    if (!canRead || !settings.showFab) {
+    if (!canRead || !ALWAYS.showFab) {
       if (fab) fab.style.display = 'none';
       return;
     }
@@ -1531,12 +1537,6 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
         toast('已恢复默认设置');
       });
     }
-
-    if (settings.autoDark && typeof matchMedia === 'function') {
-      try {
-        matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyNativeFlags);
-      } catch (e) { /* 旧浏览器忽略 */ }
-    }
   }
 
   function whenReady(fn) {
@@ -1560,7 +1560,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
   // 供自动化测试使用的调试出口（不影响正常使用）
   try {
     window.__TRX__ = {
-      version: '1.0.0',
+      version: '1.1.0',
       get settings() { return settings; },
       state: state,
       parseChapter: parseChapter,
@@ -1574,6 +1574,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
       loadChapter: loadChapter,
       ensureToc: ensureToc,
       pageInfo: pageInfo,
+      stepFontSize: stepFontSize,
       applyNativeFlags: applyNativeFlags,
       isAdUrl: isAdUrl,
       sweepAds: sweepAds,
