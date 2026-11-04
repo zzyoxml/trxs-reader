@@ -33,3 +33,6 @@ jobs:
 
       - name: 集成测试
         run: npm run test:integration
+
+      - name: 自动滚动测试
+        run: npm run test:scroll

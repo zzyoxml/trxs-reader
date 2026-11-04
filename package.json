@@ -8,10 +8,11 @@
   "scripts": {
     "fetch-fixtures": "node test/fetch-fixtures.mjs",
     "make-fixtures": "node test/make-fixtures.mjs",
-    "test": "node test/run.mjs && node test/integration.mjs && node test/live.mjs",
+    "test": "node test/run.mjs && node test/integration.mjs && node test/live.mjs && node test/autoscroll.mjs",
     "test:unit": "node test/run.mjs",
     "test:integration": "node test/integration.mjs",
-    "test:live": "node test/live.mjs"
+    "test:live": "node test/live.mjs",
+    "test:scroll": "node test/autoscroll.mjs"
   },
   "devDependencies": {
     "jsdom": "^27.0.0"

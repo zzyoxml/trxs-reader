@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         同人小说网 trxs.cc 阅读增强（阅读模式 · 夜间 · 去广告）
 // @namespace    https://github.com/zzyoxml/trxs-reader
-// @version      1.2.0
+// @version      1.3.0
 // @description  为 trxs.cc 提供沉浸式阅读模式、夜间/护眼配色、广告清理、目录跳转、自动连读、阅读进度记忆
 // @author       zzyoxml
 // @license      MIT
@@ -156,7 +156,9 @@
     family: 'system',
     theme: 'light',
     autoNext: true,
-    darkNative: false // 原页面夜间模式
+    autoScroll: false,  // 自动滚动
+    scrollSpeed: 4,     // 自动滚动速度 1-10
+    darkNative: false   // 原页面夜间模式
   };
 
   /* -------------------------------------------------------------------------
@@ -589,12 +591,15 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
   font-size: 13px; line-height: 28px; white-space: nowrap;
 }
 #trx-bar button:hover { border-color: var(--trx-accent); color: var(--trx-accent); }
+#trx-bar button.trx-on { border-color: var(--trx-accent); color: var(--trx-accent); background: color-mix(in srgb, var(--trx-accent) 14%, transparent); }
 #trx-bar .trx-bar-actions { display: flex; gap: 8px; }
 
 #trx-progress { flex: 0 0 auto; height: 3px; background: transparent; }
 #trx-progress-bar { height: 3px; width: 0; background: var(--trx-accent); transition: width .1s linear; }
 
 #trx-main { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; }
+/* 自动滚动开启时关掉平滑滚动，否则每帧赋 scrollTop 会被平滑动画吞掉 */
+#trx-reader.trx-autoscroll #trx-main { scroll-behavior: auto; }
 #trx-content {
   max-width: var(--trx-w); margin: 0 auto;
   padding: 26px 22px 140px;
@@ -779,7 +784,12 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
     loading: false,
     reachedEnd: false,
     toc: null,
-    lastScrollSave: 0
+    lastScrollSave: 0,
+    // 自动滚动
+    scrollOn: false,
+    scrollRaf: null,
+    scrollAcc: 0,
+    scrollLastTs: null
   };
 
   function progressMap() {
@@ -819,6 +829,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
         <div class="trx-bar-actions">
           <button id="trx-btn-font-down" title="缩小字号">A−</button>
           <button id="trx-btn-font-up" title="放大字号">A+</button>
+          <button id="trx-btn-scroll" title="自动滚动（快捷键 S）">▶</button>
           <button id="trx-btn-theme" title="切换夜间（快捷键 D）">🌙</button>
           <button id="trx-btn-set" title="阅读设置">⚙</button>
           <button id="trx-btn-exit" title="退出阅读模式（Esc）">✕</button>
@@ -858,6 +869,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
           </select>
         </div>
         <div class="trx-row"><label>主题</label><div class="trx-themes" id="set-theme"></div></div>
+        <div class="trx-row"><label>滚速</label><input id="set-speed" type="range" min="1" max="10" step="1"><span class="trx-val" id="set-speed-v"></span></div>
         <div class="trx-row"><label>自动连读</label><input type="checkbox" id="set-auto"></div>
         <div class="trx-sheet-foot">
           <button id="trx-set-reset">恢复默认</button>
@@ -895,6 +907,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
     $('#trx-btn-theme', wrap).onclick = cycleTheme;
     $('#trx-btn-font-up', wrap).onclick = function () { stepFontSize(1); };
     $('#trx-btn-font-down', wrap).onclick = function () { stepFontSize(-1); };
+    $('#trx-btn-scroll', wrap).onclick = toggleAutoScroll;
 
     $('#trx-prev', wrap).onclick = function () { goRelative(-1); };
     $('#trx-next', wrap).onclick = function () { goRelative(1); };
@@ -928,6 +941,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
     bindRange('set-font', 'fontSize', function (v) { return v + 'px'; });
     bindRange('set-lh', 'lineHeight', function (v) { return v.toFixed(1); });
     bindRange('set-width', 'maxWidth', function (v) { return v + 'px'; });
+    bindRange('set-speed', 'scrollSpeed', function (v) { return String(v); });
 
     $('#set-family', wrap).addEventListener('change', function () {
       settings.family = this.value;
@@ -965,12 +979,14 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
       if (out) {
         if (id === 'set-font') out.textContent = v + 'px';
         else if (id === 'set-lh') out.textContent = Number(v).toFixed(1);
+        else if (id === 'set-speed') out.textContent = String(v);
         else out.textContent = v + 'px';
       }
     };
     set('set-font', settings.fontSize);
     set('set-lh', settings.lineHeight);
     set('set-width', settings.maxWidth);
+    set('set-speed', settings.scrollSpeed);
 
     const fam = $('#set-family', wrap);
     if (fam) fam.value = settings.family;
@@ -1300,6 +1316,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
       content.appendChild(sec);
       const main = $('#trx-main');
       if (main) main.scrollTop = 0;
+      resetAutoScrollBaseline();
     }
 
     if (state.bookId && data.index) {
@@ -1368,6 +1385,118 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
     loadChapter(nextIndex, true);
   }
 
+  /* -------------------------------------------------------------------------
+   * 自动滚动
+   * -------------------------------------------------------------------------
+   * 用 requestAnimationFrame 驱动，按「每秒像素」累加位移。
+   * 关键点：scrollTop 只接受整数，速度较低时每帧位移不足 1px，
+   * 若直接赋值会因取整而原地不动（读起来像卡住）。
+   * 因此把小数部分累积到 state.scrollAcc，攒够 1px 才真正写入。
+   * ----------------------------------------------------------------------- */
+  const SCROLL_PX_PER_SEC = [14, 20, 28, 38, 50, 66, 86, 110, 140, 180];
+
+  /** rAF 在部分环境不可用（jsdom / 极端老浏览器），用定时器兜底 */
+  const raf = (typeof requestAnimationFrame === 'function')
+    ? function (fn) { return requestAnimationFrame(fn); }
+    : function (fn) { return setTimeout(function () { fn(Date.now()); }, 16); };
+  const caf = (typeof cancelAnimationFrame === 'function')
+    ? function (id) { cancelAnimationFrame(id); }
+    : function (id) { clearTimeout(id); };
+  const nowTs = function () {
+    return (typeof performance === 'object' && performance && performance.now)
+      ? performance.now() : Date.now();
+  };
+
+  function autoScrollPxPerSec() {
+    const i = Math.min(SCROLL_PX_PER_SEC.length - 1,
+      Math.max(0, Math.round(settings.scrollSpeed) - 1));
+    return SCROLL_PX_PER_SEC[i];
+  }
+
+  function tickAutoScroll(ts) {
+    state.scrollRaf = null;
+    if (!state.scrollOn) return;
+
+    const t = (typeof ts === 'number' && isFinite(ts)) ? ts : nowTs();
+
+    const main = $('#trx-main');
+    if (!main) { stopAutoScroll(); return; }
+
+    if (state.scrollLastTs === null) state.scrollLastTs = t;
+    const dt = Math.min(64, t - state.scrollLastTs); // 切后台回来时避免跳一大段
+    state.scrollLastTs = t;
+
+    if (dt > 0) {
+      state.scrollAcc += (autoScrollPxPerSec() * dt) / 1000;
+      const step = Math.floor(state.scrollAcc);
+      if (step > 0) {
+        state.scrollAcc -= step;
+        main.scrollTop += step;
+      }
+    }
+
+    // 到底后交给「自动连读」续章；关掉连读则停下来
+    const remain = main.scrollHeight - main.scrollTop - main.clientHeight;
+    if (remain <= 2) {
+      if (settings.autoNext && !state.loading && !state.reachedEnd) {
+        state.scrollRaf = raf(tickAutoScroll);
+        return;
+      }
+      stopAutoScroll();
+      toast('已滚动到底部');
+      return;
+    }
+
+    state.scrollRaf = raf(tickAutoScroll);
+  }
+
+  function startAutoScroll() {
+    if (state.scrollOn) return;
+    const main = $('#trx-main');
+    if (!main) return;
+    state.scrollOn = true;
+    state.scrollAcc = 0;
+    state.scrollLastTs = null;
+    const wrap = $('#trx-reader');
+    if (wrap) wrap.classList.add('trx-autoscroll');
+    state.scrollRaf = raf(tickAutoScroll);
+    updateScrollBtn();
+    toast('自动滚动已开启（速度 ' + settings.scrollSpeed + '）');
+  }
+
+  function stopAutoScroll(silent) {
+    state.scrollOn = false;
+    if (state.scrollRaf !== null) {
+      caf(state.scrollRaf);
+      state.scrollRaf = null;
+    }
+    state.scrollAcc = 0;
+    state.scrollLastTs = null;
+    const wrap = $('#trx-reader');
+    if (wrap) wrap.classList.remove('trx-autoscroll');
+    updateScrollBtn();
+    if (!silent) toast('自动滚动已停止');
+  }
+
+  function toggleAutoScroll() {
+    if (state.scrollOn) stopAutoScroll();
+    else startAutoScroll();
+  }
+
+  function updateScrollBtn() {
+    const btn = $('#trx-btn-scroll');
+    if (!btn) return;
+    btn.textContent = state.scrollOn ? '⏸' : '▶';
+    btn.classList.toggle('trx-on', state.scrollOn);
+    btn.title = state.scrollOn ? '暂停自动滚动（快捷键 S）' : '自动滚动（快捷键 S）';
+  }
+
+  /** 用户主动翻章 / 跳转时，让自动滚动继续跟着走（不误停），但要重置时间基准 */
+  function resetAutoScrollBaseline() {
+    state.scrollLastTs = null;
+    state.scrollAcc = 0;
+  }
+
   /* =========================================================================
    * 12. 打开 / 关闭阅读模式
    * ========================================================================= */
@@ -1404,6 +1533,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
   }
 
   function closeReader() {
+    stopAutoScroll(true);
     const wrap = $('#trx-reader');
     if (wrap) wrap.style.display = 'none';
     state.open = false;
@@ -1499,6 +1629,11 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
         cycleTheme();
         e.preventDefault();
         break;
+      case 's':
+      case 'S':
+        toggleAutoScroll();
+        e.preventDefault();
+        break;
       case 'Home':
         if ($('#trx-main')) $('#trx-main').scrollTop = 0;
         e.preventDefault();
@@ -1560,7 +1695,7 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
   // 供自动化测试使用的调试出口（不影响正常使用）
   try {
     window.__TRX__ = {
-      version: '1.2.0',
+      version: '1.3.0',
       get settings() { return settings; },
       state: state,
       parseChapter: parseChapter,
@@ -1575,6 +1710,10 @@ html.trx-open body { overflow: hidden !important; height: 100% !important; }
       ensureToc: ensureToc,
       pageInfo: pageInfo,
       stepFontSize: stepFontSize,
+      toggleAutoScroll: toggleAutoScroll,
+      startAutoScroll: startAutoScroll,
+      stopAutoScroll: stopAutoScroll,
+      autoScrollPxPerSec: autoScrollPxPerSec,
       applyNativeFlags: applyNativeFlags,
       isAdUrl: isAdUrl,
       sweepAds: sweepAds,
