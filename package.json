@@ -1,0 +1,19 @@
+{
+  "name": "trxs-reader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tampermonkey userscript for trxs.cc: reading mode, dark mode and ad removal",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "fetch-fixtures": "node test/fetch-fixtures.mjs",
+    "make-fixtures": "node test/make-fixtures.mjs",
+    "test": "node test/run.mjs && node test/integration.mjs && node test/live.mjs",
+    "test:unit": "node test/run.mjs",
+    "test:integration": "node test/integration.mjs",
+    "test:live": "node test/live.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^27.0.0"
+  }
+}

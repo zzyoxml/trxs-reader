@@ -1,0 +1,11 @@
+node_modules/
+test/fixtures/
+package-lock.json
+*.log
+.DS_Store
+Thumbs.db
+小说阅读模式-3.4.txt
+_session.jsonl
+_rebuilt.txt
+_recovered.txt
+_best.json

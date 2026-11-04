@@ -1,0 +1,35 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: 单元 + 集成测试
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 语法检查
+        run: node --check trxs-reader.user.js
+
+      - name: 安装依赖
+        run: npm install
+
+      # CI 不联网抓站：直接使用仓库内的最小合成样本，
+      # 覆盖解析、解广告、夜间、编码与阅读器流程。
+      - name: 生成合成测试样本
+        run: node test/make-fixtures.mjs
+
+      - name: 单元测试
+        run: npm run test:unit
+
+      - name: 集成测试
+        run: npm run test:integration
